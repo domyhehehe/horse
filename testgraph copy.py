@@ -18,7 +18,7 @@ mpl.rcParams.update({
 })
 
 # ─────────────────────────────────────
-# 1) データ作成：10頭 + 0%の馬を含む例
+# 1) データ作成
 # ─────────────────────────────────────
 data = {
     "Year": [2019, 2012, 2010, 2005, 2001, 1998, 1995, 1758, 1724, 1764],
@@ -31,15 +31,12 @@ data = {
 }
 df = pd.DataFrame(data)
 
-# 0% は完全除去（以降の処理で表示されない）
 df = df[df["Percentage"] > 0]
-
 df["Percentage"] = pd.to_numeric(df["Percentage"], errors='coerce').round(2)
 df = df.sort_values(by="Percentage", ascending=True)
 vals = df["Percentage"].to_numpy()
 increment = 1e-6
 
-# 同率微差付与 (任意ロジック)
 start = 0
 for i in range(1, len(vals) + 1):
     if i == len(vals) or abs(vals[i] - vals[i-1]) > 1e-12:
@@ -56,59 +53,46 @@ vals_sorted = df["Percentage"].tolist()
 N = len(labels_sorted)
 
 # ─────────────────────────────────────
-# 2) 各馬が徐々に値が増える DataFrame 作成
-#    かつ「0.00%」を出さない工夫
+# 2) 各馬が徐々に値が増える DataFrame 作成（最初に5行の空白レコードを挿入）
 # ─────────────────────────────────────
-steps_per_horse = 10  # ステップを減らして高速化
-total_steps = N * steps_per_horse
+steps_per_horse = 10
+total_steps = N * steps_per_horse + 5
 time_index = [f"Step {i+1}" for i in range(total_steps)]
 
-# float型にし、最初は NaN (表示されない) で埋める
 time_df = pd.DataFrame(np.nan, index=time_index, columns=labels_sorted, dtype=float)
 
-# 「過去の値を保持したまま、新規の馬だけ追加」するイメージ
+# 値を追加
+for step_idx in range(5, total_steps):
+    time_df.iloc[step_idx] = time_df.iloc[step_idx - 1]
 
-time_df = pd.DataFrame(np.nan, index=time_index, columns=labels_sorted, dtype=float)
-
-for step_idx in range(total_steps):
-    # まずは直前フレーム(1行上)をコピーして値を保持する
-    if step_idx > 0:
-        time_df.iloc[step_idx] = time_df.iloc[step_idx - 1]
-
-    # このステップで新しく伸びる馬があれば、その馬だけ上書き
-    # 例: i番目の馬の出番は i*steps_per_horse ～ (i+1)*steps_per_horse
-    #     の間だけ値を更新
-    horse_index = step_idx // steps_per_horse  # 何番目の馬か割り出す
+    horse_index = (step_idx - 5) // steps_per_horse
     label = labels_sorted[horse_index]
-    step_in_horse = step_idx % steps_per_horse
+    step_in_horse = (step_idx - 5) % steps_per_horse
     progress = (step_in_horse + 1) / steps_per_horse
 
     val = vals_sorted[horse_index]
     current_val = val * progress
-    # まだ小さな値なら NaN にして「バーが生えてない」演出も可能
     if current_val < 1e-9:
         current_val = np.nan
 
     time_df.loc[time_index[step_idx], label] = current_val
 
+# 💡 NaNを0に置き換え、エラー回避
+time_df = time_df.fillna(0)
 
 # ─────────────────────────────────────
 # 3) bar_chart_race でアニメーション生成
-#    Figure サイズを大きくして見切れ防止
 # ─────────────────────────────────────
-fig, ax = plt.subplots(figsize=(30, 10), dpi=200)  # 幅10, 高さ6でゆったり配置
+fig, ax = plt.subplots(figsize=(30, 10), dpi=200)
 fig.patch.set_facecolor('black')
-# グラフの外枠(スパイン)を非表示
 for spine in ax.spines.values():
     spine.set_visible(False)
-
-# 軸目盛り(ラベル)も不要なら非表示
 ax.set_xticks([])
 ax.set_yticks([])
 
 bcr.bar_chart_race(
     df=time_df,
-    filename='horse_ranking_barchart_race_fast_filtered.mp4',
+    filename='horse_ranking_barchart_race_with_blank_frames_fixed.mp4',
     orientation='h',
     sort='desc',
     n_bars=10,
@@ -118,7 +102,7 @@ bcr.bar_chart_race(
     period_length=400,
     interpolate_period=False,
     title={
-        'label': 'Horse Ranking (No Zero-Value Horses)',
+        'label': 'Horse Ranking (Initial 5 Blank Frames)',
         'color': 'white',
         'size': 24
     },
@@ -134,4 +118,4 @@ bcr.bar_chart_race(
     writer='ffmpeg'
 )
 
-print("🎬 ✅ 0%馬を完全除去し、サイズを大きくして見切れを防止しました！")
+print("🎬 ✅ 最初に5行の空白レコードを追加し、エラーを修正しました！")

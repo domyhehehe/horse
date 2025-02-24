@@ -18,7 +18,15 @@ mpl.rcParams.update({
 })
 
 # ─────────────────────────────────────
-# 1) データ作成：10頭 + 0%の馬を含む例
+# 💡 定数設定：ここを変更するだけで調整可能
+# ─────────────────────────────────────
+N_BARS_DISPLAY = 5              # 表示するバーの数
+INITIAL_DISPLAY_COUNT = 5       # 初期に表示する馬の数
+STEPS_PER_HORSE = 10            # 各馬が成長するステップ数
+INITIAL_BLANK_STEPS = 5         # 最初の空白ステップ数
+
+# ─────────────────────────────────────
+# 1) データ作成
 # ─────────────────────────────────────
 data = {
     "Year": [2019, 2012, 2010, 2005, 2001, 1998, 1995, 1758, 1724, 1764],
@@ -31,15 +39,12 @@ data = {
 }
 df = pd.DataFrame(data)
 
-# 0% は完全除去（以降の処理で表示されない）
 df = df[df["Percentage"] > 0]
-
 df["Percentage"] = pd.to_numeric(df["Percentage"], errors='coerce').round(2)
 df = df.sort_values(by="Percentage", ascending=True)
 vals = df["Percentage"].to_numpy()
 increment = 1e-6
 
-# 同率微差付与 (任意ロジック)
 start = 0
 for i in range(1, len(vals) + 1):
     if i == len(vals) or abs(vals[i] - vals[i-1]) > 1e-12:
@@ -57,68 +62,59 @@ N = len(labels_sorted)
 
 # ─────────────────────────────────────
 # 2) 各馬が徐々に値が増える DataFrame 作成
-#    かつ「0.00%」を出さない工夫
+#    初期に設定した数の馬を最初から実際の値で表示
 # ─────────────────────────────────────
-steps_per_horse = 10  # ステップを減らして高速化
-total_steps = N * steps_per_horse
+total_steps = (N - INITIAL_DISPLAY_COUNT) * STEPS_PER_HORSE + INITIAL_BLANK_STEPS
 time_index = [f"Step {i+1}" for i in range(total_steps)]
 
-# float型にし、最初は NaN (表示されない) で埋める
-time_df = pd.DataFrame(np.nan, index=time_index, columns=labels_sorted, dtype=float)
+time_df = pd.DataFrame(0, index=time_index, columns=labels_sorted, dtype=float)  # 初期値は0
 
-# 「過去の値を保持したまま、新規の馬だけ追加」するイメージ
+# 初期表示馬を最初から実際の値で表示
+initial_labels = labels_sorted[:INITIAL_DISPLAY_COUNT]
+initial_vals = vals_sorted[:INITIAL_DISPLAY_COUNT]
+for label, val in zip(initial_labels, initial_vals):
+    time_df[label] = val  # 全ステップにわたり初期表示
 
-time_df = pd.DataFrame(np.nan, index=time_index, columns=labels_sorted, dtype=float)
+# 残りの馬をステップごとに追加
+remaining_labels = labels_sorted[INITIAL_DISPLAY_COUNT:]
+remaining_vals = vals_sorted[INITIAL_DISPLAY_COUNT:]
 
-for step_idx in range(total_steps):
-    # まずは直前フレーム(1行上)をコピーして値を保持する
-    if step_idx > 0:
-        time_df.iloc[step_idx] = time_df.iloc[step_idx - 1]
+for step_idx in range(INITIAL_BLANK_STEPS, total_steps):
+    time_df.iloc[step_idx] = time_df.iloc[step_idx - 1]  # 前のステップをコピー
 
-    # このステップで新しく伸びる馬があれば、その馬だけ上書き
-    # 例: i番目の馬の出番は i*steps_per_horse ～ (i+1)*steps_per_horse
-    #     の間だけ値を更新
-    horse_index = step_idx // steps_per_horse  # 何番目の馬か割り出す
-    label = labels_sorted[horse_index]
-    step_in_horse = step_idx % steps_per_horse
-    progress = (step_in_horse + 1) / steps_per_horse
+    horse_index = (step_idx - INITIAL_BLANK_STEPS) // STEPS_PER_HORSE
+    if horse_index < len(remaining_labels):
+        label = remaining_labels[horse_index]
+        step_in_horse = (step_idx - INITIAL_BLANK_STEPS) % STEPS_PER_HORSE
+        progress = (step_in_horse + 1) / STEPS_PER_HORSE
 
-    val = vals_sorted[horse_index]
-    current_val = val * progress
-    # まだ小さな値なら NaN にして「バーが生えてない」演出も可能
-    if current_val < 1e-9:
-        current_val = np.nan
-
-    time_df.loc[time_index[step_idx], label] = current_val
-
+        val = remaining_vals[horse_index]
+        current_val = val * progress
+        time_df.loc[time_index[step_idx], label] = current_val
 
 # ─────────────────────────────────────
 # 3) bar_chart_race でアニメーション生成
-#    Figure サイズを大きくして見切れ防止
 # ─────────────────────────────────────
-fig, ax = plt.subplots(figsize=(30, 10), dpi=200)  # 幅10, 高さ6でゆったり配置
+fig, ax = plt.subplots(figsize=(30, 10), dpi=200)
 fig.patch.set_facecolor('black')
-# グラフの外枠(スパイン)を非表示
 for spine in ax.spines.values():
     spine.set_visible(False)
-
-# 軸目盛り(ラベル)も不要なら非表示
 ax.set_xticks([])
 ax.set_yticks([])
 
 bcr.bar_chart_race(
     df=time_df,
-    filename='horse_ranking_barchart_race_fast_filtered.mp4',
+    filename='horse_ranking_barchart_race_custom_config.mp4',
     orientation='h',
     sort='desc',
-    n_bars=10,
+    n_bars=N_BARS_DISPLAY,  # 💡 定数で設定
     fixed_order=False,
     fixed_max=False,
     steps_per_period=5,
     period_length=400,
     interpolate_period=False,
     title={
-        'label': 'Horse Ranking (No Zero-Value Horses)',
+        'label': f'Horse Ranking (Top {N_BARS_DISPLAY}, Initial {INITIAL_DISPLAY_COUNT} Displayed)',
         'color': 'white',
         'size': 24
     },
@@ -134,4 +130,4 @@ bcr.bar_chart_race(
     writer='ffmpeg'
 )
 
-print("🎬 ✅ 0%馬を完全除去し、サイズを大きくして見切れを防止しました！")
+print(f"🎬 ✅ 下位{INITIAL_DISPLAY_COUNT}頭を最初から実際の値で表示し、上位{N_BARS_DISPLAY}頭をアニメーションで表示しました！")
