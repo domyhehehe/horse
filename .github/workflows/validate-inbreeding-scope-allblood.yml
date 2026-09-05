@@ -1,0 +1,17 @@
+name: validate-inbreeding-scope-allblood
+on:
+  push:
+    branches:
+      - chatgpt/inbreeding-scope-allblood-v1
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax check
+        run: python -m py_compile inbreeding_performance_scope_allblood_pyto_v1_0.py
+      - name: Exact F / F5 self test
+        run: python inbreeding_performance_scope_allblood_pyto_v1_0.py --self-test
