@@ -1669,8 +1669,8 @@ def fixed_write_logit(con, out):
         w=csv.DictWriter(f,fieldnames=fields)
         w.writeheader()
         for pop,where in (
-            ("ALL_BLOOD","1=1"),
-            ("STAKES_TOP3","ScopeFlatStakesTop3=1"),
+            ("ALL_BLOOD","AnalysisBirthYearEligible=1"),
+            ("STAKES_TOP3","AnalysisBirthYearEligible=1 AND ScopeFlatStakesTop3=1"),
         ):
             for metric in metrics:
                 for outcome in outcomes:
