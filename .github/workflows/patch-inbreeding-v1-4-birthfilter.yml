@@ -1,0 +1,41 @@
+name: patch-inbreeding-v1-4-birthfilter
+permissions:
+  contents: write
+on:
+  push:
+    branches:
+      - chatgpt/inbreeding-scope-allblood-v1-20260906
+    paths:
+      - patch_inbreeding_v1_4_birthfilter.py
+      - .github/workflows/patch-inbreeding-v1-4-birthfilter.yml
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/inbreeding-scope-allblood-v1-20260906
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Patch
+        run: python patch_inbreeding_v1_4_birthfilter.py
+      - name: Syntax
+        run: python -m py_compile inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+      - name: Self test
+        run: python inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py --self-test
+      - name: Verify birth filter
+        run: |
+          grep -q 'ALL_BLOOD","AnalysisBirthYearEligible=1' inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+          grep -q 'STAKES_TOP3","AnalysisBirthYearEligible=1 AND ScopeFlatStakesTop3=1' inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Fix v1.4 birth-year model filter"
+            git push origin HEAD:chatgpt/inbreeding-scope-allblood-v1-20260906
+          fi
