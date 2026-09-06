@@ -35,11 +35,9 @@ if end < 0:
     raise SystemExit('v1.1 runner marker not found')
 fast_body = fast[start:end]
 fast_body = fast_body.replace('base.', '')
-# self_testはv1.3側で独自に作るので除去。
 sm = fast_body.find('\ndef self_test():')
 if sm >= 0:
     fast_body = fast_body[:sm]
-# monkey patch代入は単体化後もそのまま有効。
 
 # v1.2から生産国×出生5年帯 grouped logistic 修正だけ取り込む。
 start2 = fix.index('RANK_COL =')
@@ -47,9 +45,16 @@ end2 = fix.index('\ndef self_test():')
 fix_body = fix[start2:end2]
 fix_body = fix_body.replace('fast.', '').replace('base.', '')
 
-header = '''\n\n# ===== v1.3 all-in-one fast layer =====\nSTAKES_CACHE_DB = SCRIPT_DIR / ".inbreeding_stakes_normalized_v2.sqlite3"\n'''
+header = '''
 
-selftest = r'''\n\ndef self_test_all_in_one():
+# ===== v1.3 all-in-one fast layer =====
+STAKES_CACHE_DB = SCRIPT_DIR / ".inbreeding_stakes_normalized_v2.sqlite3"
+'''
+
+selftest = '''
+
+
+def self_test_all_in_one():
     by={
         "A":Horse("A"),"B":Horse("B"),"C":Horse("C"),
         "H1":Horse("H1",sire="A",dam="B"),"H2":Horse("H2",sire="A",dam="C"),"X":Horse("X",sire="H1",dam="H2"),
@@ -84,7 +89,6 @@ if __name__ == "__main__":
 '''
 
 out = base.rstrip() + header + '\n' + fast_body.strip() + '\n\n' + fix_body.strip() + selftest
-# v1.1の古いwrite_logit差替えのあとにv1.2 fixed_write_logitが上書きされることを確認。
 for needle in ('class FastExactFEngine:', 'def fast_parse_stakes_to_db(', 'RANK_COL =', 'def fixed_write_logit(', 'def self_test_all_in_one('):
     if needle not in out:
         raise SystemExit('missing merged section: '+needle)
