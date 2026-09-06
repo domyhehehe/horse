@@ -1,0 +1,45 @@
+name: build-inbreeding-v1-5-db-bias-aware
+permissions:
+  contents: write
+on:
+  push:
+    branches:
+      - chatgpt/inbreeding-scope-allblood-v1-20260906
+    paths:
+      - build_inbreeding_v1_5_db_bias_aware.py
+      - inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+      - .github/workflows/build-inbreeding-v1-5-db-bias-aware.yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/inbreeding-scope-allblood-v1-20260906
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build v1.5 single file
+        run: python build_inbreeding_v1_5_db_bias_aware.py
+      - name: Syntax check
+        run: python -m py_compile inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+      - name: Full self test
+        run: python inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py --self-test
+      - name: Verify DB-bias-aware features
+        run: |
+          grep -q 'VERSION = "1.5.0-batch-exact-db-bias-aware"' inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+          grep -q 'inbreeding_db_coverage_audit.csv' inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+          grep -q 'ALL_BLOOD same-sire×birth5' inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+          grep -q 'source_horse' inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+          ! grep -q '^import inbreeding_performance_scope_allblood' inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+      - name: Commit generated v1.5
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add inbreeding_performance_scope_allblood_pyto_v1_5_db_bias_aware.py
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Generate v1.5 DB-bias-aware analyzer"
+            git push origin HEAD:chatgpt/inbreeding-scope-allblood-v1-20260906
+          fi
