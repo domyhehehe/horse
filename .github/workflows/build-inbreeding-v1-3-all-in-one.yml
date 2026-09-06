@@ -1,0 +1,43 @@
+name: build-inbreeding-v1-3-all-in-one
+permissions:
+  contents: write
+on:
+  push:
+    branches:
+      - chatgpt/inbreeding-scope-allblood-v1-20260906
+    paths:
+      - build_inbreeding_v1_3_all_in_one.py
+      - inbreeding_performance_scope_allblood_pyto_v1_0.py
+      - inbreeding_performance_scope_allblood_pyto_v1_1_fast.py
+      - inbreeding_performance_scope_allblood_pyto_v1_2_fast.py
+      - .github/workflows/build-inbreeding-v1-3-all-in-one.yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/inbreeding-scope-allblood-v1-20260906
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build single file
+        run: python build_inbreeding_v1_3_all_in_one.py
+      - name: Syntax check
+        run: python -m py_compile inbreeding_performance_scope_allblood_pyto_v1_3_all_in_one.py
+      - name: Self test without helper imports
+        run: python inbreeding_performance_scope_allblood_pyto_v1_3_all_in_one.py --self-test
+      - name: Verify no helper dependency
+        run: |
+          ! grep -q "import inbreeding_performance_scope_allblood" inbreeding_performance_scope_allblood_pyto_v1_3_all_in_one.py
+      - name: Commit generated all-in-one file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add inbreeding_performance_scope_allblood_pyto_v1_3_all_in_one.py
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Generate v1.3 all-in-one inbreeding analyzer"
+            git push origin HEAD:chatgpt/inbreeding-scope-allblood-v1-20260906
+          fi
