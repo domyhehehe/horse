@@ -1,0 +1,62 @@
+name: build-inbreeding-v1-4-batch-exact
+permissions:
+  contents: write
+on:
+  push:
+    branches:
+      - chatgpt/inbreeding-scope-allblood-v1-20260906
+    paths:
+      - build_inbreeding_v1_4_batch_exact.py
+      - inbreeding_performance_scope_allblood_pyto_v1_3_all_in_one.py
+      - .github/workflows/build-inbreeding-v1-4-batch-exact.yml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/inbreeding-scope-allblood-v1-20260906
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build v1.4 single file
+        run: python build_inbreeding_v1_4_batch_exact.py
+      - name: Syntax check
+        run: python -m py_compile inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+      - name: Exact F cross-check self test
+        run: python inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py --self-test
+      - name: Verify single-file independence
+        run: |
+          ! grep -q "import inbreeding_performance_scope_allblood" inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+      - name: Synthetic 20000 horse core benchmark
+        run: |
+          python - <<'PY'
+          import time
+          import inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact as m
+          n=20000
+          by={f'P{i}':m.Horse(f'P{i}') for i in range(200)}
+          # sire reuse + overlapping generationsを作る。全兄弟pairも多数含める。
+          for i in range(200,n):
+              s=(i//20)%200
+              d=200 + ((i//5) % max(1,i-200))
+              if d>=i: d=(i*17+7)%i
+              if s==d: d=(d+1)%i
+              by[f'P{i}']=m.Horse(f'P{i}',sire=f'P{s}',dam=f'P{d}')
+          t=time.time()
+          core=m.BatchExactCore(by)
+          F,D,w,pairs=core.compute(progress=False)
+          dt=time.time()-t
+          print(f'benchmark n={n} sec={dt:.3f} row_traces={w.row_traces} sibling_pairs={len(pairs)} avg_anc={(w.ancestor_nodes/w.row_traces if w.row_traces else 0):.1f}')
+          assert len(F)==n
+          PY
+      - name: Commit generated v1.4
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add inbreeding_performance_scope_allblood_pyto_v1_4_batch_exact.py
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+          else
+            git commit -m "Generate v1.4 batch Exact F analyzer"
+            git push origin HEAD:chatgpt/inbreeding-scope-allblood-v1-20260906
+          fi
